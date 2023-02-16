@@ -43,7 +43,6 @@ async def add_transaction(request: web_request.Request):
 
     # Check user and his balance
     user = await User.select("balance").where(User.id == user_id).gino.first()
-    user = await User.get(user_id)
     if user is None:
         raise web.HTTPBadRequest()
     balance = user.balance
