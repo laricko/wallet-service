@@ -1,5 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
+import asyncio
 
 from gino.crud import CRUDModel
 from aiohttp import web
@@ -28,7 +29,7 @@ async def get_user(user_id: int, date: str | None = None) -> CRUDModel:
     return user
 
 
-async def create_transaction(data: dict) -> CRUDModel:
+async def create_transaction(data: dict) -> None:
     # check user exists
     user_id = int(data["user_id"])
     user = await User.get(user_id)
@@ -49,19 +50,38 @@ async def create_transaction(data: dict) -> CRUDModel:
     if new_balance < 0:
         raise web.HTTPPaymentRequired(reason="not enough balance")
 
-    # executing
+    await asyncio.create_task(
+        execute_transaction(
+            user_id,
+            amount,
+            data["type"],
+            data["uid"],
+            _get_datetime(data["timestamp"]),
+            new_balance,
+            user,
+        )
+    )
+
+
+async def execute_transaction(
+    user_id: int,
+    amount: Decimal,
+    type: str,
+    uid: str,
+    timestamp: datetime,
+    new_balance: Decimal,
+    user: CRUDModel,
+) -> None:
     async with db.transaction():
-        transaction = await Transaction.create(
+        await Transaction.create(
             user_id=user_id,
-            type=data["type"],
+            type=type,
             amount=amount,
             old_balance=user.balance,
-            uid=data["uid"],
-            timestamp=_get_datetime(data["timestamp"]),
+            uid=uid,
+            timestamp=timestamp,
         )
         await user.update(balance=new_balance).apply()
-
-    return _jsonable_transaction(transaction)
 
 
 async def get_transaction(transaction_uid: int) -> CRUDModel:
@@ -73,15 +93,6 @@ async def get_transaction(transaction_uid: int) -> CRUDModel:
     return _jsonable_transaction(transaction)
 
 
-def _jsonable_transaction(transaction: CRUDModel) -> CRUDModel:
-    transaction.amount = str(transaction.amount)
-    transaction.old_balance = str(transaction.old_balance)
-    transaction.uid = str(transaction.uid)
-    transaction.created = str(transaction.created)
-    transaction.timestamp = str(transaction.timestamp)
-    return transaction
-
-
 async def _get_user_balance_on_date(user_id: int, date: str) -> Decimal:
     # Не знаю как сделать через гино, заджоинить таблицу, обычно юзаю алхимию
     date = _get_datetime(date)
@@ -91,6 +102,15 @@ async def _get_user_balance_on_date(user_id: int, date: str) -> Decimal:
         .gino.first()
     )
     return transaction and transaction.old_balance or Decimal("0.00")
+
+
+def _jsonable_transaction(transaction: CRUDModel) -> CRUDModel:
+    transaction.amount = str(transaction.amount)
+    transaction.old_balance = str(transaction.old_balance)
+    transaction.uid = str(transaction.uid)
+    transaction.created = str(transaction.created)
+    transaction.timestamp = str(transaction.timestamp)
+    return transaction
 
 
 def _get_datetime(date: str) -> datetime:

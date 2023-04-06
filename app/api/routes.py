@@ -34,8 +34,17 @@ async def add_transaction(request: web_request.Request):
     data = await get_post_data(
         "uid", "user_id", "amount", "type", "timestamp", request=request
     )
-    transaction = await crud.create_transaction(data)
-    return web.json_response(transaction.to_dict())
+    await crud.create_transaction(data)
+    # Notify transaction complited
+    # connection = pika.BlockingConnection(pika.ConnectionParameters("rabbitmq"))
+    # channel = connection.channel()
+    # channel.queue_bind(
+    #     QUEUE_NAME_TO_SOME_SERVICE, EXCHANGER, ROUTING_KEY_TO_SOME_SERVICE
+    # )
+    # channel.basic_publish(
+    #     EXCHANGER, ROUTING_KEY_TO_SOME_SERVICE, json.dumps(data)).encode()
+    # )
+    return web.json_response(data)
 
 
 async def get_transaction(request: web_request.Request):
