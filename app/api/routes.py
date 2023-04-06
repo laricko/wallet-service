@@ -35,6 +35,17 @@ async def add_transaction(request: web_request.Request):
         "uid", "user_id", "amount", "type", "timestamp", request=request
     )
     await crud.create_transaction(data)
+    notify_transaction(data)
+    return web.json_response(data)
+
+
+async def get_transaction(request: web_request.Request):
+    tr_uid = request.match_info.get("uid")
+    transaction = await crud.get_transaction(tr_uid)
+    return web.json_response(transaction.to_dict())
+
+
+def notify_transaction(data: dict) -> None:
     # Notify transaction complited
     # connection = pika.BlockingConnection(pika.ConnectionParameters("rabbitmq"))
     # channel = connection.channel()
@@ -44,13 +55,7 @@ async def add_transaction(request: web_request.Request):
     # channel.basic_publish(
     #     EXCHANGER, ROUTING_KEY_TO_SOME_SERVICE, json.dumps(data)).encode()
     # )
-    return web.json_response(data)
-
-
-async def get_transaction(request: web_request.Request):
-    tr_uid = request.match_info.get("uid")
-    transaction = await crud.get_transaction(tr_uid)
-    return web.json_response(transaction.to_dict())
+    return
 
 
 def add_routes(app):
